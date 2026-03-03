@@ -4,40 +4,62 @@ umask 077
 
 CORE_URL="https://raw.githubusercontent.com/IT4You-Scripts/Guardian360_Linux/main/guardian_linux.sh"
 CORE_PATH="/root/scripts/guardian_linux.sh"
-TMP_PATH="/root/scripts/guardian_linux.sh.tmp"
+TMP_PATH="/root/scripts/.guardian_linux.tmp"
 
-LOG_FILE="/root/scripts/guardian_bootstrap.log"
+EXPECTED_JQ_VERSION="jq-1.6"
+JQ_PATH="/usr/local/bin/jq"
+JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64"
 
-log() {
-    echo "$(date '+%F %T') $1" >> "$LOG_FILE"
-}
-
-# Garante diretório
 mkdir -p /root/scripts
 
-log "Bootstrap iniciado"
+exec 9>/var/lock/guardian_linux_bootstrap.lock
+flock -n 9 || exit 0
 
-# Baixa versão nova
-if curl -fsSL "$CORE_URL" -o "$TMP_PATH"; then
-    log "Download do core concluído"
+# ------------------------------------------------------------
+# Validar jq
+# ------------------------------------------------------------
+validate_jq() {
+    if ! command -v jq >/dev/null 2>&1; then return 1; fi
+    if [[ "$(jq --version 2>/dev/null)" != "$EXPECTED_JQ_VERSION" ]]; then return 1; fi
+    if [[ "$(echo '{"status":"ok"}' | jq -r '.status' 2>/dev/null)" != "ok" ]]; then return 1; fi
+    return 0
+}
 
-    # Validação mínima (evita arquivo vazio ou HTML de erro)
-    if grep -q "Guardian 360 - Linux Edition" "$TMP_PATH"; then
-        chmod +x "$TMP_PATH"
-        mv -f "$TMP_PATH" "$CORE_PATH"
-        log "Core atualizado com sucesso"
-    else
-        log "Falha na validação do core. Mantendo versão atual."
-        rm -f "$TMP_PATH"
+install_jq() {
+    if dpkg -l 2>/dev/null | grep -q "^ii  jq "; then
+        apt remove jq -y >/dev/null 2>&1 || true
     fi
-else
-    log "Falha no download do core"
+
+    curl -fsSL "$JQ_URL" -o "$JQ_PATH"
+    chmod +x "$JQ_PATH"
+
+    export PATH="/usr/local/bin:$PATH"
+    hash -r
+}
+
+if ! validate_jq; then
+    install_jq
 fi
 
-# Executa core existente
-if [[ -x "$CORE_PATH" ]]; then
-    exec "$CORE_PATH" "$@"
-else
-    log "Core não encontrado ou não executável"
+if ! validate_jq; then
+    echo "Falha ao validar Json Query (jq)"
     exit 1
 fi
+
+echo "Json Query (jq) validado"
+
+# ------------------------------------------------------------
+# Baixar core
+# ------------------------------------------------------------
+curl -fsSL "$CORE_URL" -o "$TMP_PATH"
+chmod +x "$TMP_PATH"
+mv -f "$TMP_PATH" "$CORE_PATH"
+
+echo "O script guardian-linux.sh foi devidamente atualizado"
+
+# ------------------------------------------------------------
+# Executar core
+# ------------------------------------------------------------
+echo "Executando o sript principal..."
+
+exec "$CORE_PATH" "$@"
