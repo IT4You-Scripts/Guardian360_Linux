@@ -86,25 +86,37 @@ done
 
 [[ -n "$CLIENTE" ]] || die "-Cliente obrigatório"
 
-
 # =============================================================================
-# Garantir reboot semanal sábado 03:00
+# Garantir reboot semanal sábado 03:00 (Compatível Debian 10 e Debian 12)
 # =============================================================================
 
-REBOOT_SCHEDULE="0 3 * * 6 reboot"
+REBOOT_SCHEDULE="0 3 * * 6"
 CRON_TMP="/tmp/.guardian_cron.$$"
 
-if ! crontab -l > "$CRON_TMP" 2>/dev/null; then
-  : > "$CRON_TMP"
+# Descobre binário válido de reboot
+if command -v systemctl >/dev/null 2>&1; then
+  REBOOT_CMD="/usr/bin/systemctl reboot"
+else
+  REBOOT_CMD="$(command -v reboot || true)"
 fi
 
-if ! grep -Eqs '^[[:space:]]*0[[:space:]]+3[[:space:]]+\*[[:space:]]+\*[[:space:]]+6[[:space:]]+reboot' "$CRON_TMP"; then
-  echo "$REBOOT_SCHEDULE" >> "$CRON_TMP"
-  crontab "$CRON_TMP"
+# Se não existir comando válido, aborta silenciosamente
+if [[ -z "${REBOOT_CMD:-}" ]]; then
+  rm -f "$CRON_TMP"
+else
+  # Obtém crontab atual (se existir)
+  if ! crontab -l > "$CRON_TMP" 2>/dev/null; then
+    : > "$CRON_TMP"
+  fi
+
+  # Verifica se já existe reboot sábado 03:00
+  if ! grep -Eqs '^[[:space:]]*0[[:space:]]+3[[:space:]]+\*[[:space:]]+\*[[:space:]]+6[[:space:]]+.*(reboot|systemctl)' "$CRON_TMP"; then
+    echo "$REBOOT_SCHEDULE $REBOOT_CMD" >> "$CRON_TMP"
+    crontab "$CRON_TMP"
+  fi
+
+  rm -f "$CRON_TMP"
 fi
-
-rm -f "$CRON_TMP"
-
 
 
 
