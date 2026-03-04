@@ -86,25 +86,6 @@ done
 
 [[ -n "$CLIENTE" ]] || die "-Cliente obrigatório"
 
-# =============================================================================
-# Garantir reboot semanal sábado 03:00
-# =============================================================================
-REBOOT_SCHEDULE="0 3 * * 6"
-REBOOT_CMD="/sbin/reboot"
-CRON_TMP="/tmp/.guardian_cron.$$"
-
-if ! crontab -l > "$CRON_TMP" 2>/dev/null; then
-  : > "$CRON_TMP"
-fi
-
-if ! grep -Eqs '^[[:space:]]*0[[:space:]]+3[[:space:]]+\*[[:space:]]+\*[[:space:]]+6[[:space:]]+.*reboot' "$CRON_TMP"; then
-  echo "$REBOOT_SCHEDULE $REBOOT_CMD" >> "$CRON_TMP"
-  crontab "$CRON_TMP"
-fi
-
-rm -f "$CRON_TMP"
-
-
 # -------------------------
 # DEPENDÊNCIAS
 # -------------------------
