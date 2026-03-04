@@ -399,6 +399,51 @@ else
 fi
 
 # =============================================================================
+# LIMPEZA DO CRON (remove entradas obsoletas do guardian, se existirem)
+# =============================================================================
+clean_cron_entries() {
+  # Padrões a remover (grep -E sobre a crontab atual)
+  # Cobre variações com ou sem "./" no path, com ou sem redirecionamentos
+  local patterns=(
+    'backup-fileserver\.sh'
+    'faxina\.sh'
+  )
+
+  local current_cron
+  current_cron="$(crontab -l 2>/dev/null || true)"
+
+  # Se crontab está vazia, nada a fazer
+  if [[ -z "$current_cron" ]]; then
+    log INFO "CLEAN_CRON: crontab vazia, nada a remover"
+    return 0
+  fi
+
+  local new_cron="$current_cron"
+  local removed=0
+
+  for pat in "${patterns[@]}"; do
+    local before="$new_cron"
+    new_cron="$(echo "$new_cron" | grep -Ev "$pat" || true)"
+    if [[ "$before" != "$new_cron" ]]; then
+      log INFO "CLEAN_CRON: removida(s) linha(s) com padrão: $pat"
+      (( removed++ )) || true
+    fi
+  done
+
+  if (( removed > 0 )); then
+    if echo "$new_cron" | crontab - 2>/dev/null; then
+      log INFO "CLEAN_CRON: crontab atualizada ($removed padrão(ões) removido(s))"
+    else
+      log WARNING "CLEAN_CRON: falha ao gravar crontab atualizada"
+    fi
+  else
+    log INFO "CLEAN_CRON: nenhuma entrada a remover"
+  fi
+}
+
+clean_cron_entries
+
+# =============================================================================
 # REPARO AUTOMÁTICO OFFLINE em /mnt
 # =============================================================================
 repair_mnt_filesystems() {
