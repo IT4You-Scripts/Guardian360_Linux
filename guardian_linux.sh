@@ -11,6 +11,7 @@
 # =============================================================================
 set -euo pipefail
 umask 077
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 CLIENTE=""
 API_URL="https://guardian.it4you.com.br/api/insert-linux"
