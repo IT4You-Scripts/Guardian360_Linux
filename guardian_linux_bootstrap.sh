@@ -60,6 +60,6 @@ echo "O script guardian-linux.sh foi devidamente atualizado"
 # ------------------------------------------------------------
 # Executar core
 # ------------------------------------------------------------
-echo "Executando o sript principal..."
+echo "Executando o script principal..."
 
 exec "$CORE_PATH" "$@"
