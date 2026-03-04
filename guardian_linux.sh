@@ -364,6 +364,41 @@ else
 fi
 
 # =============================================================================
+# LIMPEZA DE LIXEIRAS (somente se os HDs estiverem montados)
+# =============================================================================
+clean_trash() {
+  local dirs=(
+    "/mnt/hd-dados/LIXEIRA"
+    "/mnt/hd-backup/BACKUP/LIXEIRA"
+    "/mnt/hd-backup/OBSOLETOS"
+    "/mnt/hd-dados2/LIXEIRA"
+    "/mnt/hd-backup2/BACKUP/LIXEIRA"
+    "/mnt/hd-backup2/OBSOLETOS"
+  )
+  for d in "${dirs[@]}"; do
+    if [[ -d "$d" ]]; then
+      log INFO "CLEAN_TRASH: limpando $d"
+      rm -fr "${d:?}/"* 2>/dev/null || true
+    else
+      log INFO "CLEAN_TRASH: ignorado (não existe/montado): $d"
+    fi
+  done
+}
+
+clean_trash
+
+# =============================================================================
+# BACKUP DAS CONFIGURAÇÕES DO FILESERVER
+# =============================================================================
+if [[ -x "/root/scripts/backup-fileserver.sh" ]]; then
+  log INFO "BACKUP_FILESERVER: executando /root/scripts/backup-fileserver.sh"
+  /root/scripts/backup-fileserver.sh >> /var/log/backup-fileserver.log 2>&1 || \
+    log WARNING "BACKUP_FILESERVER: script retornou código de erro $?"
+else
+  log INFO "BACKUP_FILESERVER: script não encontrado/executável, pulando"
+fi
+
+# =============================================================================
 # REPARO AUTOMÁTICO OFFLINE em /mnt
 # =============================================================================
 repair_mnt_filesystems() {
