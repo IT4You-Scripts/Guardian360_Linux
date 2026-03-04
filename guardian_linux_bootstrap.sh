@@ -2,6 +2,10 @@
 set -euo pipefail
 umask 077
 
+BOOTSTRAP_URL="https://raw.githubusercontent.com/IT4You-Scripts/Guardian360_Linux/main/guardian_linux_bootstrap.sh"
+BOOTSTRAP_PATH="$(realpath "$0")"
+BOOTSTRAP_TMP="/root/scripts/.guardian_linux_bootstrap.tmp"
+
 CORE_URL="https://raw.githubusercontent.com/IT4You-Scripts/Guardian360_Linux/main/guardian_linux.sh"
 CORE_PATH="/root/scripts/guardian_linux.sh"
 TMP_PATH="/root/scripts/.guardian_linux.tmp"
@@ -14,6 +18,25 @@ mkdir -p /root/scripts
 
 exec 9>/var/lock/guardian_linux_bootstrap.lock
 flock -n 9 || exit 0
+
+# ------------------------------------------------------------
+# Auto-atualização do próprio bootstrap
+# ------------------------------------------------------------
+# Evita loop infinito: só roda se a variável não estiver definida
+if [[ -z "${GUARDIAN_BOOTSTRAP_UPDATED:-}" ]]; then
+    curl -fsSL "$BOOTSTRAP_URL" -o "$BOOTSTRAP_TMP"
+    chmod +x "$BOOTSTRAP_TMP"
+
+    if ! cmp -s "$BOOTSTRAP_TMP" "$BOOTSTRAP_PATH"; then
+        mv -f "$BOOTSTRAP_TMP" "$BOOTSTRAP_PATH"
+        echo "Bootstrap atualizado — relançando..."
+        export GUARDIAN_BOOTSTRAP_UPDATED=1
+        exec "$BOOTSTRAP_PATH" "$@"
+    else
+        rm -f "$BOOTSTRAP_TMP"
+        echo "Bootstrap já está atualizado"
+    fi
+fi
 
 # ------------------------------------------------------------
 # Validar jq
