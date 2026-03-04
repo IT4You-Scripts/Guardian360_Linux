@@ -42,11 +42,11 @@ if ! validate_jq; then
 fi
 
 if ! validate_jq; then
-    echo "Falha ao validar Json Query (jq)"
+    echo "Falha ao validar JSON Query (jq)"
     exit 1
 fi
 
-echo "Json Query (jq) validado"
+echo "JSON Query (jq) validado"
 
 # ------------------------------------------------------------
 # Baixar core
