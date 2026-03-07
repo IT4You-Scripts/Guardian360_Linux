@@ -562,7 +562,7 @@ fi
           fsck_rc_stage1:$fsck_rc_stage1, fsck_rc_stage2:$fsck_rc_stage2,
           details:$details
         }'
-    done | jq -s '.'
+    done | jq -s 'map(select(type=="object"))'
   )"
 
   start_samba_back_if_needed
