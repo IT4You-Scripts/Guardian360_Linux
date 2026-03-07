@@ -459,6 +459,7 @@ for attempt in 1 2 3; do
 
 if command -v fuser >/dev/null 2>&1; then
   busy_info="$(fuser -vm "$mp" 2>&1 || true)"
+  busy_info="$(echo "$busy_info" | tr '\n' ' ' | tr -s ' ')"
   log INFO "FS_REPAIR: processos segurando $mp -> $busy_info"
 
   log INFO "FS_REPAIR: enviando kill via fuser"
