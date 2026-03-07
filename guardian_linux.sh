@@ -399,51 +399,6 @@ else
 fi
 
 # =============================================================================
-# LIMPEZA DO CRON (remove entradas obsoletas do guardian, se existirem)
-# =============================================================================
-clean_cron_entries() {
-  # Padrões a remover (grep -E sobre a crontab atual)
-  # Cobre variações com ou sem "./" no path, com ou sem redirecionamentos
-  local patterns=(
-    'backup-fileserver\.sh'
-    'faxina\.sh'
-  )
-
-  local current_cron
-  current_cron="$(crontab -l 2>/dev/null || true)"
-
-  # Se crontab está vazia, nada a fazer
-  if [[ -z "$current_cron" ]]; then
-    log INFO "CLEAN_CRON: crontab vazia, nada a remover"
-    return 0
-  fi
-
-  local new_cron="$current_cron"
-  local removed=0
-
-  for pat in "${patterns[@]}"; do
-    local before="$new_cron"
-    new_cron="$(echo "$new_cron" | grep -Ev "$pat" || true)"
-    if [[ "$before" != "$new_cron" ]]; then
-      log INFO "CLEAN_CRON: removida(s) linha(s) com padrão: $pat"
-      (( removed++ )) || true
-    fi
-  done
-
-  if (( removed > 0 )); then
-    if echo "$new_cron" | crontab - 2>/dev/null; then
-      log INFO "CLEAN_CRON: crontab atualizada ($removed padrão(ões) removido(s))"
-    else
-      log WARNING "CLEAN_CRON: falha ao gravar crontab atualizada"
-    fi
-  else
-    log INFO "CLEAN_CRON: nenhuma entrada a remover"
-  fi
-}
-
-clean_cron_entries
-
-# =============================================================================
 # REPARO AUTOMÁTICO OFFLINE em /mnt
 # =============================================================================
 repair_mnt_filesystems() {
@@ -485,17 +440,65 @@ repair_mnt_filesystems() {
         continue
       fi
 
-      log INFO "FS_REPAIR: umount $mp ($dev)"
-      busy_info=""
-      if ! umount "$mp" 2>/dev/null; then
-        if command -v fuser >/dev/null 2>&1; then
-          busy_info="$(fuser -vm "$mp" 2>&1 || true)"
-        fi
-        log ERROR "FS_REPAIR: falha umount $mp"
-        jq -n --arg mount "$mp" --arg device "$dev" --arg fstype "$fstype" --arg busy "$busy_info" \
-          '{mountpoint:$mount,device:$device,fstype:$fstype,status:"FAIL_UMOUNT",busy_processes:$busy}'
-        continue
-      fi
+log INFO "FS_REPAIR: preparando desmontagem $mp ($dev)"
+
+sync
+sleep 1
+
+busy_info=""
+umount_ok="false"
+
+for attempt in 1 2 3; do
+
+  if umount "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  log WARNING "FS_REPAIR: umount falhou tentativa $attempt ($mp)"
+
+if command -v fuser >/dev/null 2>&1; then
+  busy_info="$(fuser -vm "$mp" 2>&1 || true)"
+  log INFO "FS_REPAIR: processos segurando $mp -> $busy_info"
+
+  log INFO "FS_REPAIR: enviando kill via fuser"
+  cd /
+  fuser -km "$mp" 2>/dev/null || true
+  sleep 2
+fi
+
+  if umount "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  log WARNING "FS_REPAIR: tentando lazy umount ($mp)"
+  if umount -l "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  sleep 2
+
+done
+
+if [[ "$umount_ok" != "true" ]]; then
+  log ERROR "FS_REPAIR: falha definitiva umount $mp"
+
+  jq -n \
+    --arg mount "$mp" \
+    --arg device "$dev" \
+    --arg fstype "$fstype" \
+    --arg busy "$busy_info" \
+    '{
+      mountpoint:$mount,
+      device:$device,
+      fstype:$fstype,
+      status:"FAIL_UMOUNT",
+      busy_processes:$busy
+    }'
+  continue
+fi
 
       log INFO "FS_REPAIR: fsck offline $dev"
       rc1=0; rc2=0
