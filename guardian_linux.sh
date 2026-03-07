@@ -458,8 +458,7 @@ for attempt in 1 2 3; do
   log WARNING "FS_REPAIR: umount falhou tentativa $attempt ($mp)"
 
 if command -v fuser >/dev/null 2>&1; then
-  busy_info="$(fuser -vm "$mp" 2>&1 || true)"
-  busy_info="$(echo "$busy_info" | tr '\n' ' ' | tr -s ' ')"
+  busy_info="$(fuser -vm "$mp" 2>&1 | tr '\n' ' ' | sed 's/"/'\''/g' || true)"
   log INFO "FS_REPAIR: processos segurando $mp -> $busy_info"
 
   log INFO "FS_REPAIR: enviando kill via fuser"
