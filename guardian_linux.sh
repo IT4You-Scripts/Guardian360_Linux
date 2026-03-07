@@ -18,7 +18,7 @@ API_URL="https://guardian.it4you.com.br/api/insert-linux"
 
 BASE_DIR="/root/guardian"
 LOG_FILE="$BASE_DIR/guardian_linux.log"
-LOCK_FILE="/var/lock/guardian_linux.lock"
+LOCK_FILE="/root/guardian/guardian.lock"
 
 mkdir -p "$BASE_DIR"
 touch "$LOG_FILE"
