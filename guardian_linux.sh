@@ -406,7 +406,7 @@ truncate -s 0 /var/mail/root 2>/dev/null || true
 truncate -s 0 /var/mail/scanner 2>/dev/null || true
 truncate -s 0 /var/spool/mail/root 2>/dev/null || true
 truncate -s 0 /var/spool/mail/scanner 2>/dev/null || true
-apt clean
+apt-get clean 2>/dev/null || true
 journalctl --rotate 2>/dev/null || true
 journalctl --vacuum-size=500M 2>/dev/null || true
 
