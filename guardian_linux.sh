@@ -399,6 +399,18 @@ else
 fi
 
 # =============================================================================
+# Limpeza Mail e Journal
+# Objetivo: impedir crescimento de /var/mail e logs em Debian 10/12
+# =============================================================================
+truncate -s 0 /var/mail/root 2>/dev/null || true
+truncate -s 0 /var/mail/scanner 2>/dev/null || true
+truncate -s 0 /var/spool/mail/root 2>/dev/null || true
+truncate -s 0 /var/spool/mail/scanner 2>/dev/null || true
+apt clean
+journalctl --rotate 2>/dev/null || true
+journalctl --vacuum-size=500M 2>/dev/null || true
+
+# =============================================================================
 # REPARO AUTOMÁTICO OFFLINE em /mnt
 # =============================================================================
 repair_mnt_filesystems() {

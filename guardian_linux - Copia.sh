@@ -11,13 +11,14 @@
 # =============================================================================
 set -euo pipefail
 umask 077
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 CLIENTE=""
 API_URL="https://guardian.it4you.com.br/api/insert-linux"
 
 BASE_DIR="/root/guardian"
 LOG_FILE="$BASE_DIR/guardian_linux.log"
-LOCK_FILE="/var/lock/guardian_linux.lock"
+LOCK_FILE="/root/guardian/guardian.lock"
 
 mkdir -p "$BASE_DIR"
 touch "$LOG_FILE"
@@ -363,6 +364,41 @@ else
 fi
 
 # =============================================================================
+# LIMPEZA DE LIXEIRAS (somente se os HDs estiverem montados)
+# =============================================================================
+clean_trash() {
+  local dirs=(
+    "/mnt/hd-dados/LIXEIRA"
+    "/mnt/hd-backup/BACKUP/LIXEIRA"
+    "/mnt/hd-backup/OBSOLETOS"
+    "/mnt/hd-dados2/LIXEIRA"
+    "/mnt/hd-backup2/BACKUP/LIXEIRA"
+    "/mnt/hd-backup2/OBSOLETOS"
+  )
+  for d in "${dirs[@]}"; do
+    if [[ -d "$d" ]]; then
+      log INFO "CLEAN_TRASH: limpando $d"
+      rm -fr "${d:?}/"* 2>/dev/null || true
+    else
+      log INFO "CLEAN_TRASH: ignorado (não existe/montado): $d"
+    fi
+  done
+}
+
+clean_trash
+
+# =============================================================================
+# BACKUP DAS CONFIGURAÇÕES DO FILESERVER
+# =============================================================================
+if [[ -x "/root/scripts/backup-fileserver.sh" ]]; then
+  log INFO "BACKUP_FILESERVER: executando /root/scripts/backup-fileserver.sh"
+  /root/scripts/backup-fileserver.sh >> /var/log/backup-fileserver.log 2>&1 || \
+    log WARNING "BACKUP_FILESERVER: script retornou código de erro $?"
+else
+  log INFO "BACKUP_FILESERVER: script não encontrado/executável, pulando"
+fi
+
+# =============================================================================
 # REPARO AUTOMÁTICO OFFLINE em /mnt
 # =============================================================================
 repair_mnt_filesystems() {
@@ -404,17 +440,65 @@ repair_mnt_filesystems() {
         continue
       fi
 
-      log INFO "FS_REPAIR: umount $mp ($dev)"
-      busy_info=""
-      if ! umount "$mp" 2>/dev/null; then
-        if command -v fuser >/dev/null 2>&1; then
-          busy_info="$(fuser -vm "$mp" 2>&1 || true)"
-        fi
-        log ERROR "FS_REPAIR: falha umount $mp"
-        jq -n --arg mount "$mp" --arg device "$dev" --arg fstype "$fstype" --arg busy "$busy_info" \
-          '{mountpoint:$mount,device:$device,fstype:$fstype,status:"FAIL_UMOUNT",busy_processes:$busy}'
-        continue
-      fi
+log INFO "FS_REPAIR: preparando desmontagem $mp ($dev)"
+
+sync
+sleep 1
+
+busy_info=""
+umount_ok="false"
+
+for attempt in 1 2 3; do
+
+  if umount "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  log WARNING "FS_REPAIR: umount falhou tentativa $attempt ($mp)"
+
+if command -v fuser >/dev/null 2>&1; then
+  busy_info="$(fuser -vm "$mp" 2>&1 | tr '\n' ' ' | sed 's/"/'\''/g' || true)"
+  log INFO "FS_REPAIR: processos segurando $mp -> $busy_info"
+
+  log INFO "FS_REPAIR: enviando kill via fuser"
+  cd /
+  fuser -km "$mp" 2>/dev/null || true
+  sleep 2
+fi
+
+  if umount "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  log WARNING "FS_REPAIR: tentando lazy umount ($mp)"
+  if umount -l "$mp" 2>/dev/null; then
+    umount_ok="true"
+    break
+  fi
+
+  sleep 2
+
+done
+
+if [[ "$umount_ok" != "true" ]]; then
+  log ERROR "FS_REPAIR: falha definitiva umount $mp"
+
+  jq -n \
+    --arg mount "$mp" \
+    --arg device "$dev" \
+    --arg fstype "$fstype" \
+    --arg busy "$busy_info" \
+    '{
+      mountpoint:$mount,
+      device:$device,
+      fstype:$fstype,
+      status:"FAIL_UMOUNT",
+      busy_processes:$busy
+    }'
+  continue
+fi
 
       log INFO "FS_REPAIR: fsck offline $dev"
       rc1=0; rc2=0
@@ -478,7 +562,7 @@ repair_mnt_filesystems() {
           fsck_rc_stage1:$fsck_rc_stage1, fsck_rc_stage2:$fsck_rc_stage2,
           details:$details
         }'
-    done | jq -s '.'
+    done | jq -s 'map(select(type=="object"))'
   )"
 
   start_samba_back_if_needed
