@@ -9,8 +9,7 @@
 # - No FINAL, imprime apenas: API OK/FAIL (HTTP/curl_rc)
 # - Tudo detalhado fica no LOG e no JSON local
 # =============================================================================
-# NOTA: Removido 'set -e' para evitar saídas silenciosas em caso de erro
-set -uo pipefail
+set -euo pipefail
 umask 077
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
@@ -19,15 +18,14 @@ API_URL="https://guardian.it4you.com.br/api/insert-linux"
 
 BASE_DIR="/root/guardian"
 LOG_FILE="$BASE_DIR/guardian_linux.log"
-# LOCK_FILE removido - não mais necessário
+LOCK_FILE="/root/guardian/guardian.lock"
 
 mkdir -p "$BASE_DIR"
 touch "$LOG_FILE"
 
-# LOCK REMOVIDO - estava causando travamentos
-# Se precisar reativar no futuro, descomente as linhas abaixo:
-# exec 9>"$LOCK_FILE"
-# flock -n 9 || exit 0
+# Evita execução simultânea
+exec 9>"$LOCK_FILE"
+flock -n 9 || exit 0
 
 # -------------------------
 # Logging (somente arquivo)
