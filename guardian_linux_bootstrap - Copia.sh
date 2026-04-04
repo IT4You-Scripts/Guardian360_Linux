@@ -16,8 +16,8 @@ JQ_URL="https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64"
 
 mkdir -p /root/scripts
 
-# exec 9>/var/lock/guardian_linux_bootstrap.lock
-# flock -n 9 || exit 0
+exec 9>/var/lock/guardian_linux_bootstrap.lock
+flock -n 9 || exit 0
 
 # ------------------------------------------------------------
 # Auto-atualização do próprio bootstrap
